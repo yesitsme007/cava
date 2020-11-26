@@ -550,3 +550,12 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
     iniparser_freedict(ini);
     return result;
 }
+
+void cfg_artnet_alloc (struct config_params* cfg, int no_devices) {
+  cfg->no_devices = no_devices;
+  cfg->devices = malloc(no_devices * sizeof(DeviceT)); 
+}
+
+void cfg_artnet_free (struct config_params* cfg) {
+  free(cfg->devices);
+}

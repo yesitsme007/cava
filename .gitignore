@@ -31,3 +31,5 @@ ltmain.sh
 m4/
 missing
 version
+*.code-workspace
+.vs-code

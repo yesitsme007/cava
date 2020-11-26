@@ -53,6 +53,7 @@
 #include "input/sndio.h"
 
 #include "config.h"
+#include "output/artnet.h"
 
 #ifdef __GNUC__
 // curses.h or other sources may already define
@@ -171,6 +172,39 @@ int *monstercat_filter(int *bars, int number_of_bars, int waves, double monsterc
     return bars;
 }
 
+void init_default_artnet_config(struct config_params* cfg) {
+  static const char* universes[] = {"192.168.178.47:1234", "192.168.178.59:12345"}; 
+  cfg->no_universes = sizeof(universes) / sizeof(universes[0]);
+  cfg->universes = universes;
+  cfg->no_bars = 12;
+  cfg->no_colors = 6;
+  cfg_artnet_alloc(cfg, 4);
+  DeviceT* device1 = &cfg->devices[0];
+  device1->universe = 0;
+  device1->group = 0;
+  device1->channel_r = 50;
+  device1->channel_g = 51;
+  device1->channel_b = 52;
+  DeviceT* device2 = &cfg->devices[1];
+  device2->universe = 0;
+  device2->group = 0;
+  device2->channel_r = 60;
+  device2->channel_g = 61;
+  device2->channel_b = 62;
+  DeviceT* device3 = &cfg->devices[2];
+  device3->universe = 1;
+  device3->group = 1;
+  device3->channel_r = 100;
+  device3->channel_g = 101;
+  device3->channel_b = 102;
+  DeviceT* device4 = &cfg->devices[3];
+  device4->universe = 1;
+  device4->group = 0;
+  device4->channel_r = 110;
+  device4->channel_g = 111;
+  device4->channel_b = 112;
+}
+
 // general: entry point
 int main(int argc, char **argv) {
 
@@ -226,6 +260,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
     struct audio_data audio;
     memset(&audio, 0, sizeof(audio));
+    ArtnetT* artnet;
 
 #ifndef NDEBUG
     int maxvalue = 0;
@@ -281,7 +316,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
         output_mode = p.om;
 
-        if (output_mode != OUTPUT_RAW) {
+        if (output_mode != OUTPUT_RAW && output_mode != OUTPUT_ARTNET) {
             // Check if we're running in a tty
             inAtty = 0;
             if (strncmp(ttyname(0), "/dev/tty", 8) == 0 || strcmp(ttyname(0), "/dev/console") == 0)
@@ -417,6 +452,12 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
         reset_output_buffers(&audio);
 
+        if (output_mode == OUTPUT_ARTNET) {
+            printf("Init Artnet\n");
+            init_default_artnet_config(&p);
+            artnet = init_artnet(&p, true);
+            printf("Init Artnet done\n");
+        }
         debug("starting audio thread\n");
         switch (p.im) {
 #ifdef ALSA
@@ -588,7 +629,9 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                     height = p.ascii_range;
                 }
                 break;
-
+            case OUTPUT_ARTNET:
+                update_colors(artnet, number_of_bars, bars);
+                break;
             default:
                 exit(EXIT_FAILURE); // Can't happen.
             }
@@ -1091,7 +1134,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 #endif
 
                     // zero values causes divided by zero segfault (if not raw)
-                    if (output_mode != OUTPUT_RAW && bars[n] < 1)
+                    if (output_mode != OUTPUT_RAW && output_mode != OUTPUT_ARTNET && bars[n] < 1)
                         bars[n] = 1;
 
                     // automatic sense adjustment
@@ -1133,7 +1176,9 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                     rc = print_raw_out(number_of_bars, fp, p.is_bin, p.bit_format, p.ascii_range,
                                        p.bar_delim, p.frame_delim, bars);
                     break;
-
+                case OUTPUT_ARTNET:
+                    rc = update_colors(artnet, number_of_bars, bars);
+                    break;
                 default:
                     exit(EXIT_FAILURE); // Can't happen.
                 }
@@ -1190,8 +1235,12 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         fftw_free(out_treble_l);
         fftw_destroy_plan(p_treble_l);
         fftw_destroy_plan(p_treble_r);
-
+        free_artnet(artnet);
+        
         cleanup();
+        if (output_mode == OUTPUT_ARTNET) {
+            cfg_artnet_free(&p);
+        }
 
         if (should_quit)
             return EXIT_SUCCESS;
