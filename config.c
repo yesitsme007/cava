@@ -216,6 +216,13 @@ bool validate_config(struct config_params *p, struct error_s *error) {
             return false;
         }
     }
+    if (strcmp(outputMethod, "artnet") == 0) { // raw:
+        p->om = OUTPUT_ARTNET;
+        p->bar_spacing = 0;
+        p->bar_width = 1;
+        p->autobars = false;
+        p->fixedbars = 12;
+    }
     if (p->om == OUTPUT_NOT_SUPORTED) {
 #ifndef NCURSES
         write_errorf(
@@ -551,11 +558,24 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
     return result;
 }
 
-void cfg_artnet_alloc (struct config_params* cfg, int no_devices) {
+void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices) {
+  cfg->no_universes = no_universes;
+  cfg->universes =  malloc(no_universes * sizeof(UniverseT));
   cfg->no_devices = no_devices;
   cfg->devices = malloc(no_devices * sizeof(DeviceT)); 
 }
 
+void cfg_add_universe(UniverseT* universe, int universe_id, const char* hostname, int port) {
+  universe->hostname = malloc(strlen(hostname)+1);
+  strcpy(universe->hostname, hostname);
+  universe->id = universe_id;
+  universe->port = port;
+}
+
 void cfg_artnet_free (struct config_params* cfg) {
+  for (int i=0; i<cfg->no_universes; ++i) {
+    free(cfg->universes[i].hostname);
+  }
+  free(cfg->universes);
   free(cfg->devices);
 }

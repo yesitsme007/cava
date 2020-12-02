@@ -173,36 +173,42 @@ int *monstercat_filter(int *bars, int number_of_bars, int waves, double monsterc
 }
 
 void init_default_artnet_config(struct config_params* cfg) {
-  static const char* universes[] = {"192.168.178.47:1234", "192.168.178.59:12345"}; 
+  UniverseT universes[] = {
+    { 1, "192.168.178.82", 0},
+    { 2, "192.168.178.23", 0}
+   }; 
   cfg->no_universes = sizeof(universes) / sizeof(universes[0]);
-  cfg->universes = universes;
+  cfg_artnet_alloc(cfg, cfg->no_universes, 4);
+  for (int i=0; i<cfg->no_universes; i++) {
+    cfg_add_universe(&(cfg->universes[i]), universes[i].id, universes[i].hostname, universes[i].port);
+  }
+
   cfg->no_bars = 12;
   cfg->no_colors = 6;
-  cfg_artnet_alloc(cfg, 4);
   DeviceT* device1 = &cfg->devices[0];
   device1->universe = 0;
   device1->group = 0;
-  device1->channel_r = 50;
-  device1->channel_g = 51;
-  device1->channel_b = 52;
+  device1->channel_r = 2;
+  device1->channel_g = 3;
+  device1->channel_b = 4;
   DeviceT* device2 = &cfg->devices[1];
   device2->universe = 0;
   device2->group = 0;
-  device2->channel_r = 60;
-  device2->channel_g = 61;
-  device2->channel_b = 62;
+  device2->channel_r = 7;
+  device2->channel_g = 8;
+  device2->channel_b = 9;
   DeviceT* device3 = &cfg->devices[2];
   device3->universe = 1;
   device3->group = 1;
-  device3->channel_r = 100;
-  device3->channel_g = 101;
-  device3->channel_b = 102;
+  device3->channel_r = 2;
+  device3->channel_g = 3;
+  device3->channel_b = 4;
   DeviceT* device4 = &cfg->devices[3];
   device4->universe = 1;
-  device4->group = 0;
-  device4->channel_r = 110;
-  device4->channel_g = 111;
-  device4->channel_b = 112;
+  device4->group = 1;
+  device4->channel_r = 7;
+  device4->channel_g = 8;
+  device4->channel_b = 9;
 }
 
 // general: entry point
@@ -454,11 +460,13 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
         if (output_mode == OUTPUT_ARTNET) {
             printf("Init Artnet\n");
+            number_of_bars = 12;
             init_default_artnet_config(&p);
             artnet = init_artnet(&p, true);
             printf("Init Artnet done\n");
         }
         debug("starting audio thread\n");
+
         switch (p.im) {
 #ifdef ALSA
         case INPUT_ALSA:
@@ -554,7 +562,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         }
 
         bool reloadConf = false;
-
         while (!reloadConf) { // jumping back to this loop means that you resized the screen
             for (n = 0; n < 256; n++) {
                 bars_last[n] = 0;
@@ -630,7 +637,10 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                 }
                 break;
             case OUTPUT_ARTNET:
-                update_colors(artnet, number_of_bars, bars);
+                // width must be hardcoded for raw output.
+                width = 256;
+                height = pow(2, p.bit_format) - 1;
+                // do init here?
                 break;
             default:
                 exit(EXIT_FAILURE); // Can't happen.
@@ -639,23 +649,22 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             // handle for user setting too many bars
             if (p.fixedbars) {
                 p.autobars = 0;
-                if (p.fixedbars * p.bar_width + p.fixedbars * p.bar_spacing - p.bar_spacing > width)
+                if (p.fixedbars * p.bar_width + p.fixedbars * p.bar_spacing - p.bar_spacing > width) {
                     p.autobars = 1;
+                }
             }
-
             // getting original numbers of bars incase of resize
             if (p.autobars == 1) {
                 number_of_bars = (width + p.bar_spacing) / (p.bar_width + p.bar_spacing);
                 // if (p.bar_spacing != 0) number_of_bars = (width - number_of_bars * p.bar_spacing
                 // + p.bar_spacing) / bar_width;
-            } else
+            } else {
                 number_of_bars = p.fixedbars;
-
+            }
             if (number_of_bars < 1)
                 number_of_bars = 1; // must have at least 1 bars
             if (number_of_bars > 256)
                 number_of_bars = 256; // cant have more than 256 bars
-
             if (p.stereo) { // stereo must have even numbers of bars
                 if (number_of_bars % 2 != 0)
                     number_of_bars--;
@@ -680,7 +689,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             debug("height: %d width: %d bars:%d bar width: %d rest: %d\n", height, width,
                   number_of_bars, p.bar_width, rest);
 #endif
-
             if (p.stereo)
                 number_of_bars =
                     number_of_bars / 2; // in stereo only half number of number_of_bars per channel
@@ -693,14 +701,12 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             // calculate frequency constant (used to distribute bars across the frequency band)
             double frequency_constant = log10((float)p.lower_cut_off / (float)p.upper_cut_off) /
                                         (1 / ((float)number_of_bars + 1) - 1);
-
             // process: calculate cutoff frequencies and eq
             int bass_cut_off_bar = -1;
             int treble_cut_off_bar = -1;
             bool first_bar = true;
             int first_treble_bar = 0;
             int bar_buffer[number_of_bars + 1];
-
             for (n = 0; n < number_of_bars + 1; n++) {
                 double bar_distribution_coefficient = frequency_constant * (-1);
                 bar_distribution_coefficient +=
@@ -1173,6 +1179,10 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                                                  x_axis_info);
                     break;
                 case OUTPUT_RAW:
+                    for(int i=0; i<number_of_bars; ++i) {
+                        printf("%d ", bars[i]);
+                    }
+                    printf("\n");
                     rc = print_raw_out(number_of_bars, fp, p.is_bin, p.bit_format, p.ascii_range,
                                        p.bar_delim, p.frame_delim, bars);
                     break;

@@ -54,8 +54,14 @@ struct device {
   int channel_b;
   int group;
 };
-
 typedef struct device DeviceT;
+
+struct universe {
+  int id;
+  char* hostname;
+  int port; // <=0: use default Artnet port 6454
+};
+typedef struct universe UniverseT;
 
 struct config_params {
     char *color, *bcolor, *raw_target, *audio_source,
@@ -76,7 +82,7 @@ struct config_params {
     int no_devices;
     DeviceT* devices;
 
-    const char** universes;
+    UniverseT* universes;
     int no_colors;  // number of colors each device will display (distributed evenly across hue 0-360°)
 };
 
@@ -88,5 +94,6 @@ struct error_s {
 bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colorsOnly,
                  struct error_s *error);
                  
-void cfg_artnet_alloc (struct config_params* cfg, int no_devices);
+void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices);
+void cfg_add_universe(UniverseT*, int universe_id, const char* hostname, int port);
 void cfg_artnet_free (struct config_params* cfg);
