@@ -47,6 +47,7 @@ enum output_method { OUTPUT_NCURSES, OUTPUT_NONCURSES, OUTPUT_RAW, OUTPUT_ARTNET
 
 enum xaxis_scale { NONE, FREQUENCY, NOTE };
 
+#ifndef ARTNET
 struct device {
   int universe;
   int channel_r;
@@ -63,6 +64,9 @@ struct universe {
 };
 typedef struct universe UniverseT;
 
+#endif
+
+
 struct config_params {
     char *color, *bcolor, *raw_target, *audio_source,
         /**gradient_color_1, *gradient_color_2,*/ **gradient_colors, *data_format, *mono_option;
@@ -77,14 +81,14 @@ struct config_params {
         gradient, gradient_count, fixedbars, framerate, bar_width, bar_spacing, autosens, overshoot,
         waves, fifoSample, fifoSampleBits, sleep_timer;
     
-    int no_bars; // number of frequency bands
+#ifndef ARTNET   
     int no_universes;
+    UniverseT* universes;
     int no_devices;
     DeviceT* devices;
-
-    UniverseT* universes;
-    int no_colors;  // number of colors each device will display (distributed evenly across hue 0-360°)
+    int no_colors; // number of colors each device will display (distributed evenly across hue 0-360°)
 };
+#endif
 
 struct error_s {
     char message[MAX_ERROR_LEN];
@@ -94,6 +98,8 @@ struct error_s {
 bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colorsOnly,
                  struct error_s *error);
                  
+#ifndef ARTNET
 void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices);
 void cfg_add_universe(UniverseT*, int universe_id, const char* hostname, int port);
 void cfg_artnet_free (struct config_params* cfg);
+#endif

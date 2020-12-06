@@ -183,7 +183,7 @@ void init_default_artnet_config(struct config_params* cfg) {
     cfg_add_universe(&(cfg->universes[i]), universes[i].id, universes[i].hostname, universes[i].port);
   }
 
-  cfg->no_bars = 12;
+  //cfg->no_bars = 12;
   cfg->no_colors = 6;
   DeviceT* device1 = &cfg->devices[0];
   device1->universe = 0;
@@ -316,7 +316,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         struct error_s error;
         error.length = 0;
         if (!load_config(configPath, &p, 0, &error)) {
-            fprintf(stderr, "Error loading config. %s", error.message);
+            fprintf(stderr, "Error loading config. %s\n", error.message);
             exit(EXIT_FAILURE);
         }
 
@@ -458,13 +458,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
         reset_output_buffers(&audio);
 
-        if (output_mode == OUTPUT_ARTNET) {
-            printf("Init Artnet\n");
-            number_of_bars = 12;
-            init_default_artnet_config(&p);
-            artnet = init_artnet(&p, true);
-            printf("Init Artnet done\n");
-        }
         debug("starting audio thread\n");
 
         switch (p.im) {
@@ -640,7 +633,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                 // width must be hardcoded for raw output.
                 width = 256;
                 height = pow(2, p.bit_format) - 1;
-                // do init here?
                 break;
             default:
                 exit(EXIT_FAILURE); // Can't happen.
@@ -828,7 +820,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
             if (p.stereo)
                 number_of_bars = number_of_bars * 2;
-
             int x_axis_info = 0;
 
             if (p.xaxis != NONE) {
@@ -877,6 +868,13 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                     }
                 }
                 printf("\r\033[%dA", lines + 1);
+            }
+            
+            if (output_mode == OUTPUT_ARTNET) {
+                printf("Init Artnet\n");
+                // init_default_artnet_config(&p);
+                artnet = init_artnet(&p, number_of_bars, true);
+                printf("Init Artnet done\n");
             }
 
             bool resizeTerminal = false;

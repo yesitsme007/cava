@@ -168,6 +168,55 @@ bool validate_colors(void *params, void *err) {
 
     return true;
 }
+#ifndef ARTNET
+bool validate_artnet(struct config_params *p, struct error_s *error) {
+    bool result = true;
+    char section_name[100];
+
+    for (int i=0; i < p->no_universes; ++i) {
+        snprintf(section_name, sizeof(section_name), "universe-%d", i+1);
+        if (p->universes[i].hostname == NULL) {
+             write_errorf(error, "Missing expected entry 'hostname' in section %s\n", section_name);
+             result = false;
+        }
+
+        if (p->universes[i].id < 0) {
+             write_errorf(error, "Missing expected entry 'id' in section %s\n", section_name);
+             result = false;
+        }
+    }
+
+    for (int i=0; i < p->no_devices; ++i) {
+        snprintf(section_name, sizeof(section_name), "device-%d", i+1);
+        if (p->devices[i].group < 0) {
+             write_errorf(error, "Missing expected entry 'group' in section %s\n", section_name);
+             result = false;
+        }
+
+        if (p->devices[i].universe < 0) {
+             write_errorf(error, "Missing expected entry 'universe' in section %s\n", section_name);
+             result = false;
+        }
+
+        if (p->devices[i].channel_r < 0) {
+             write_errorf(error, "Missing expected entry 'channel_red' in section %s\n", section_name);
+             result = false;
+        }
+
+        if (p->devices[i].channel_g < 0) {
+             write_errorf(error, "Missing expected entry 'channel_g' in section %s\n", section_name);
+             result = false;
+        }
+
+        if (p->devices[i].channel_b < 0) {
+             write_errorf(error, "Missing expected entry 'channel_b' in section %s\n", section_name);
+             result = false;
+        }
+    }
+
+    return result;
+}
+#endif
 
 bool validate_config(struct config_params *p, struct error_s *error) {
     // validate: output method
@@ -216,13 +265,15 @@ bool validate_config(struct config_params *p, struct error_s *error) {
             return false;
         }
     }
-    if (strcmp(outputMethod, "artnet") == 0) { // raw:
+#ifndef ARTNET    
+    if (strcmp(outputMethod, "artnet") == 0) {
+        printf("Using Artnet output\n");
         p->om = OUTPUT_ARTNET;
         p->bar_spacing = 0;
         p->bar_width = 1;
         p->autobars = false;
-        p->fixedbars = 12;
     }
+#endif    
     if (p->om == OUTPUT_NOT_SUPORTED) {
 #ifndef NCURSES
         write_errorf(
@@ -323,6 +374,13 @@ bool validate_config(struct config_params *p, struct error_s *error) {
 
     // setting sens
     p->sens = p->sens / 100;
+
+#ifndef ARTNET
+    // validate: artnet configuration
+    if (p->om == OUTPUT_ARTNET && !validate_artnet(p, error)) {
+        return false;
+    }
+#endif
 
     return true;
 }
@@ -553,29 +611,118 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
         return false;
     }
 
+#ifndef ARTNET
+    if (strcmp(outputMethod, "artnet") == 0) {
+        printf("Configurig Artnet\n");
+        if (p->fixedbars <= 0) {
+            write_errorf(error, "Artnet needs fixed number of bars, please configure artnet/bars to positive number");
+            return  false;
+        }
+        int no_devices = iniparser_getint(ini, "artnet:no_devices", 0);
+        if (no_devices == 0) {
+            write_errorf(error, "Artnet needs at least one device, please configure artnet/no_devices");
+            return  false;
+        }
+        int no_universes = iniparser_getint(ini, "artnet:no_universes", 0);
+        if (no_universes == 0) {
+            write_errorf(error, "Artnet needs at least one univers, please configure artnet/no_universes");
+            return  false;
+        }
+        int no_groups = iniparser_getint(ini, "artnet:no_groups", 0);
+        if (no_groups == 0) {
+            write_errorf(error, "Artnet needs at least one group, please configure artnet/no_groups");
+            return  false;
+        }
+        int no_colors = iniparser_getint(ini, "artnet:no_colors", 0);
+        if (no_colors == 0) {
+            write_errorf(error, "Artnet needs number of colors, please configure artnet/no_colors");
+            return  false;
+        }
+        p->no_colors = no_colors;
+        
+        char section_name[100];
+        char key_name[120];
+        printf("Allocating space for universes: %d and devices: %d\n", no_universes, no_devices);
+        cfg_artnet_alloc(p, no_universes, no_devices);
+
+        // read universes:
+        for (int i=0; i < no_universes; ++i) {
+            snprintf(section_name, sizeof(section_name), "universe-%d", i+1);
+            int no_entries = iniparser_getsecnkeys(ini, section_name);
+            if (no_entries == 0) {
+                write_errorf(error, "Missing expected section %s", section_name);
+                return  false;
+            }
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "id");
+            int id = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "host");
+            const char* hostname = iniparser_getstring(ini, key_name, NULL);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "port");
+            int port = iniparser_getint(ini, key_name, 0);
+            printf("Adding universe: %d, host: %s, id: %d, port: %d\n", i, hostname, id, port);
+            cfg_add_universe(&(p->universes[i]), id, hostname, port);
+        }
+        // read devices:
+        for (int i=0; i < no_devices; ++i) {
+            snprintf(section_name, sizeof(section_name), "device-%d", i+1);
+            int no_entries = iniparser_getsecnkeys(ini, section_name);
+            if (no_entries == 0) {
+                write_errorf(error, "Missing expected section %s", section_name);
+                return  false;
+            }
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "universe");
+            int universe = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "group");
+            int group = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_red");
+            int channel_red = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_green");
+            int channel_green = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_blue");
+            int channel_blue = iniparser_getint(ini, key_name, -1);
+            printf("Set device: %d, universe: %d, group; %d, channels r: %d, g: %d, b: %d\n", 
+                i, universe, group, channel_red, channel_green, channel_blue);
+            DeviceT* device = &p->devices[i];
+            device->universe = universe-1;
+            device->group = group-1;
+            device->channel_r = channel_red;
+            device->channel_g = channel_green;
+            device->channel_b = channel_blue;
+        }
+    }
+#endif
+
     bool result = validate_config(p, error);
     iniparser_freedict(ini);
     return result;
 }
 
+#ifndef ARTNET
 void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices) {
   cfg->no_universes = no_universes;
-  cfg->universes =  malloc(no_universes * sizeof(UniverseT));
+  printf("Alloc universes: %d\n",no_universes);
+  cfg->universes = malloc(no_universes * sizeof(UniverseT));
   cfg->no_devices = no_devices;
+  printf("Alloc devices: %d\n",no_devices);
   cfg->devices = malloc(no_devices * sizeof(DeviceT)); 
 }
 
 void cfg_add_universe(UniverseT* universe, int universe_id, const char* hostname, int port) {
-  universe->hostname = malloc(strlen(hostname)+1);
-  strcpy(universe->hostname, hostname);
+  if (hostname != NULL) {
+    universe->hostname = malloc(strlen(hostname)+1);
+    strcpy(universe->hostname, hostname);
+  }
   universe->id = universe_id;
   universe->port = port;
 }
 
 void cfg_artnet_free (struct config_params* cfg) {
   for (int i=0; i<cfg->no_universes; ++i) {
-    free(cfg->universes[i].hostname);
+    if (cfg->universes[i].hostname != NULL) {
+        free(cfg->universes[i].hostname);
+    }
   }
   free(cfg->universes);
   free(cfg->devices);
 }
+#endif

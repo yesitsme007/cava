@@ -104,7 +104,7 @@ void init_artnet_udp(ArtnetT* artnet) {
   }
 }
 
-ArtnetT* init_artnet(struct config_params* cfg, bool connect) {
+ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
   // struct sockaddr_in addr;
   printf("init_artnet\n");
 
@@ -136,18 +136,18 @@ ArtnetT* init_artnet(struct config_params* cfg, bool connect) {
   }
 
   // copy devices from config
-  printf("init_artnet devices\n");
+  printf("init_artnet devices for %d bands\n", no_bars);
   artnet->no_devices = cfg->no_devices;
   artnet->devices = malloc(cfg->no_devices * sizeof(DeviceT));
   memcpy(artnet->devices, cfg->devices, cfg->no_devices * sizeof(DeviceT));
   artnet->no_colors = cfg->no_colors;
-  artnet->no_groups = cfg->no_bars / cfg->no_colors;
-  printf("no groups: %d, no devices: %d\n", artnet->no_groups, artnet->no_devices);
-  printf("dmx_buffer_size: %d bytes\n", dmx_buffer_size);
-  if (cfg->no_bars / artnet->no_colors % 1 != 0) {
+  printf("no colors: %d, no devices: %d\n", cfg->no_colors, cfg->no_devices);
+  artnet->no_groups = no_bars / cfg->no_colors;
+  if (no_bars / artnet->no_colors % 1 != 0) {
     printf("Warning bars should be multiple of device-colors.");
     ++artnet->no_groups;
   }
+  printf("Number of used groups: %d\n", artnet->no_groups);
   init_artnet_groups(artnet);
 
   artnet->dmx_buffers = malloc(artnet->no_universes);
@@ -171,22 +171,26 @@ void init_artnet_groups(ArtnetT* artnet) {
   for (int i=0; i < artnet->no_devices; ++i) {
     ++artnet->num_devices_in_group[artnet->devices[i].group];
   }
-  artnet->devices_in_group = malloc( artnet->no_groups * sizeof(DeviceT**));
+  artnet->devices_in_group = malloc(artnet->no_groups * sizeof(DeviceT**));
   for (int i=0; i < artnet->no_groups; ++i) {
-    printf("alloc bytes: %u\n", artnet->num_devices_in_group[i] * sizeof(DeviceT*));
+    // printf("alloc bytes: %u\n", artnet->num_devices_in_group[i] * sizeof(DeviceT*));
     artnet->devices_in_group[i] = malloc(artnet->num_devices_in_group[i] * sizeof(DeviceT*));
     memset(artnet->devices_in_group[i], 0, artnet->num_devices_in_group[i] * sizeof(DeviceT*));
   }
   for (int i=0; i < artnet->no_devices; ++i) {
     // find index of next free index in array:
     int current_group = artnet->devices[i].group;
-    int j = 0;
-    while(artnet->devices_in_group[current_group][j] != NULL) {
-      ++j;
+    if (current_group < 0 || current_group >= artnet->no_groups) {
+      printf("Warning: you have configured an used group %d in device %d, device will be ignored\n", current_group, i);
+    } else {
+      int j = 0;
+      while(artnet->devices_in_group[current_group][j] != NULL) {
+        ++j;
+      }
+      artnet->devices_in_group[current_group][j] = &artnet->devices[i];
     }
-    artnet->devices_in_group[current_group][j] = &artnet->devices[i];
   }
-  // debug print:
+  // diagnostics output:
   for (int i=0; i < artnet->no_groups; ++i) {
     printf("Group %d has devices\n", i);
     for (int j=0; j<artnet->num_devices_in_group[i]; ++j) {
@@ -364,14 +368,18 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
         int n = send(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0);
         // int n = sendto(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0, (struct sockaddr *) &addr_sento, sizeof (addr_sento));
         if (n == -1) {
-          printf("failed to send UDP\n");
+          printf("Error: failed to send UDP\n");
         }
         // debug_print_buffer(i, socket, artnet->dmx_buffers[i], dmx_buffer_size);
       } 
-      else {printf("socket=0\n");}
+      else {
+        printf("Error: socket for universe %d is zero (no connection)\n", i);
+      }
       // debug_print_buffer(i, artnet->dmx_buffers[i]+sizeof(dmx_header), dmx_buffer_size - sizeof(dmx_header));
     } 
-    else {printf("universe %d is false\n", i);}
+    // else {
+    //   printf("universe %d is false\n", i);
+    // }
 
   }
   return 0;
