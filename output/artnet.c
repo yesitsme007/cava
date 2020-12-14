@@ -225,6 +225,7 @@ void init_max_colors(ArtnetT* artnet) {
 }
 
 void free_artnet(ArtnetT* artnet) {
+  printf("Free Artnet sockets\n");
   if (artnet->sockets != NULL) {
     for (int i=0; i < artnet->no_sockets; i++) {
       if (artnet->sockets[i] >= 0) {

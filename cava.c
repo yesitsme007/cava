@@ -266,7 +266,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
     struct audio_data audio;
     memset(&audio, 0, sizeof(audio));
-    ArtnetT* artnet;
+    ArtnetT* artnet = NULL;
 
 #ifndef NDEBUG
     int maxvalue = 0;
@@ -1243,8 +1243,9 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         fftw_free(out_treble_l);
         fftw_destroy_plan(p_treble_l);
         fftw_destroy_plan(p_treble_r);
-        free_artnet(artnet);
-        
+        if (artnet != NULL) {
+            free_artnet(artnet);
+        }
         cleanup();
         if (output_mode == OUTPUT_ARTNET) {
             cfg_artnet_free(&p);
