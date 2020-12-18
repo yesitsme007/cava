@@ -217,31 +217,36 @@ void init_artnet_groups(ArtnetT* artnet) {
    so that the max possible sum of all red, green, blue values is 255
 */   
 void init_max_colors(ArtnetT* artnet) {
-  artnet->max_colorvalues = malloc(artnet->no_colors * 3 * sizeof(u_int32_t));
-  memset(artnet->max_colorvalues, 0, artnet->no_colors * 3 * sizeof(u_int32_t));
+  // artnet->max_colorvalues = malloc(artnet->no_colors * 3 * sizeof(u_int32_t));
   float sat = 1.0F;
   float val =1.0F;
   float r, g, b;
+  u_int32_t max_colorvalue_blue = 0;
+  u_int32_t max_colorvalue_green = 0;
+  u_int32_t max_colorvalue_red = 0;
+
+  u_int32_t max_colorvalues[artnet->no_colors * 3];
   printf("init_max_colors\n");
+  memset(max_colorvalues, 0, artnet->no_colors * 3 * sizeof(u_int32_t));
   for (int i=0; i < artnet->no_colors; i++) {
     float hue = 360.0F / artnet->no_colors * i;
     HSVtoRGB(&r, &g, &b, hue, sat, val);
     int ir = round(255.0F * r);
     int ig = round(255.0F * g);
     int ib = round(255.0F * b);
-    artnet->max_colorvalues[i * 3] = ir;
-    artnet->max_colorvalues[i * 3 + 1] = ig;
-    artnet->max_colorvalues[i * 3 + 2] = ib;
-    artnet->max_colorvalue_red += ir;
-    artnet->max_colorvalue_green += ig;
-    artnet->max_colorvalue_blue += ib;
+    max_colorvalues[i * 3] = ir;
+    max_colorvalues[i * 3 + 1] = ig;
+    max_colorvalues[i * 3 + 2] = ib;
+    max_colorvalue_red += ir;
+    max_colorvalue_green += ig;
+    max_colorvalue_blue += ib;
   }
-  artnet->max_colorvalue = MAX(artnet->max_colorvalue_red, artnet->max_colorvalue_green);
-  artnet->max_colorvalue = MAX(artnet->max_colorvalue, artnet->max_colorvalue_blue);
+  artnet->max_colorvalue = MAX(max_colorvalue_red, max_colorvalue_green);
+  artnet->max_colorvalue = MAX(artnet->max_colorvalue, max_colorvalue_blue);
   for (int i=0; i < artnet->no_colors; i++) {
-    printf("i: %d, max r g b: %d %d %d\n", i, artnet->max_colorvalues[i * 3], artnet->max_colorvalues[i * 3 + 1], artnet->max_colorvalues[i * 3 + 2]);
+    printf("i: %d, max r g b: %d %d %d\n", i, max_colorvalues[i * 3], max_colorvalues[i * 3 + 1], max_colorvalues[i * 3 + 2]);
   }
-  printf("max_colorvalue_red: %d max_colorvalue_green: %d max_colorvalue_blue: %d\n", artnet->max_colorvalue_red, artnet->max_colorvalue_green, artnet->max_colorvalue_blue);
+  printf("max_colorvalue_red: %d, max_colorvalue_green: %d, max_colorvalue_blue: %d\n", max_colorvalue_red, max_colorvalue_green, max_colorvalue_blue);
 }
 
 void print_artnet_stats() {
@@ -291,10 +296,6 @@ void free_artnet(ArtnetT* artnet) {
       free(artnet->dmx_buffers[i]);
     }
     free(artnet->dmx_buffers);
-  }
-  printf("Free max_colorvalues\n");
-  if (artnet->max_colorvalues != NULL) {
-    free(artnet->max_colorvalues);
   }
   printf("Free artnet\n");
   free(artnet);
@@ -363,11 +364,6 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
     int ig = round(255.0F * g);
     int ib = round(255.0F * b);
     // scale values so that all colors sum up max to (255, 255, 255)
-    // printf(" ir ig ib: %d %d %d ### max r g b: %d %d %d\n", ir, ig, ib,  artnet->max_colorvalue_red,  artnet->max_colorvalue_green,  artnet->max_colorvalue_blue);
-    // printf("index: %d: unscaled ir ig ib: %d %d %d\n", hue_index, ir, ig, ib);
-    // ir = ir * artnet->max_colorvalues[hue_index * 3] / artnet->max_colorvalue_red; 
-    // ig = ig * artnet->max_colorvalues[hue_index * 3 + 1] / artnet->max_colorvalue_green; 
-    // ib = ib * artnet->max_colorvalues[hue_index * 3 + 2] / artnet->max_colorvalue_blue;
     ir = ir * 255 / artnet->max_colorvalue; 
     ig = ig * 255 / artnet->max_colorvalue;
     ib = ib * 255 / artnet->max_colorvalue; 

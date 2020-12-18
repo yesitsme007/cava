@@ -14,10 +14,6 @@ struct artnet {
   int no_devices;       // required on input
   DeviceT* devices;     // required on input
   uint8_t **dmx_buffers;
-  uint32_t *max_colorvalues;
-  uint32_t max_colorvalue_red;
-  uint32_t max_colorvalue_green;
-  uint32_t max_colorvalue_blue;
   uint32_t max_colorvalue;
 };
 
