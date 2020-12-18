@@ -18,6 +18,7 @@ struct artnet {
   uint32_t max_colorvalue_red;
   uint32_t max_colorvalue_green;
   uint32_t max_colorvalue_blue;
+  uint32_t max_colorvalue;
 };
 
 typedef struct artnet ArtnetT;
@@ -30,3 +31,4 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]);
 void init_artnet_groups(ArtnetT* artnet);
 void init_max_colors(ArtnetT* artnet);
 void test_mapping(ArtnetT* artnet, int bars_count);
+void print_artnet_stats();

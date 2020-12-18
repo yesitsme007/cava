@@ -15,6 +15,8 @@
 #include "artnet.h"
 #include "color.h"
 
+static int exceed_counter = 0;
+static int packet_counter = 0;
 static const int artnet_port = 6454;
 
 static const uint8_t dmx_header[] = {'A', 'r', 't', '-', 'N', 'e', 't', 0x0, 
@@ -30,6 +32,8 @@ const int dmx_buffer_size = sizeof(dmx_header) + 512;
 static inline int min(int x, int y) {
     return y < x ? y : x;
 }
+
+#define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
 
 static int connect_udp(const char* host, const char* port_str) {
   struct addrinfo hints;
@@ -142,6 +146,12 @@ ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
   memcpy(artnet->devices, cfg->devices, cfg->no_devices * sizeof(DeviceT));
   artnet->no_colors = cfg->no_colors;
   printf("no colors: %d, no devices: %d\n", cfg->no_colors, cfg->no_devices);
+  for (int i=0; i < cfg->no_devices; ++i) {
+    DeviceT device = artnet->devices[i];
+    printf("device %d, universe: %d, group: %d, channel r: %d, g: %d, b: %d\n", 
+       i, device.universe, device.group, device.channel_r, device.channel_g, device.channel_b);
+  }
+
   artnet->no_groups = no_bars / cfg->no_colors;
   if (no_bars / artnet->no_colors % 1 != 0) {
     printf("Warning bars should be multiple of device-colors.");
@@ -169,11 +179,13 @@ void init_artnet_groups(ArtnetT* artnet) {
   memset(artnet->num_devices_in_group, 0, artnet->no_groups * sizeof(int));
 
   for (int i=0; i < artnet->no_devices; ++i) {
-    ++artnet->num_devices_in_group[artnet->devices[i].group];
+    int current_group = artnet->devices[i].group;
+    if (current_group < artnet->no_groups) {
+      ++artnet->num_devices_in_group[current_group];
+    }
   }
   artnet->devices_in_group = malloc(artnet->no_groups * sizeof(DeviceT**));
   for (int i=0; i < artnet->no_groups; ++i) {
-    // printf("alloc bytes: %u\n", artnet->num_devices_in_group[i] * sizeof(DeviceT*));
     artnet->devices_in_group[i] = malloc(artnet->num_devices_in_group[i] * sizeof(DeviceT*));
     memset(artnet->devices_in_group[i], 0, artnet->num_devices_in_group[i] * sizeof(DeviceT*));
   }
@@ -192,9 +204,11 @@ void init_artnet_groups(ArtnetT* artnet) {
   }
   // diagnostics output:
   for (int i=0; i < artnet->no_groups; ++i) {
-    printf("Group %d has devices\n", i);
+    printf("Group %d has devices:\n", i);
     for (int j=0; j<artnet->num_devices_in_group[i]; ++j) {
-      printf("  device %d\n", artnet->devices_in_group[i][j]->channel_r);
+      DeviceT* device = artnet->devices_in_group[i][j];
+      printf("  group %d, device %d, universe: %d, group: %d, channel r: %d, g: %d, b: %d\n", 
+       i, j, device->universe, device->group, device->channel_r, device->channel_g, device->channel_b);
     }
   }
 }
@@ -222,6 +236,16 @@ void init_max_colors(ArtnetT* artnet) {
     artnet->max_colorvalue_green += ig;
     artnet->max_colorvalue_blue += ib;
   }
+  artnet->max_colorvalue = MAX(artnet->max_colorvalue_red, artnet->max_colorvalue_green);
+  artnet->max_colorvalue = MAX(artnet->max_colorvalue, artnet->max_colorvalue_blue);
+  for (int i=0; i < artnet->no_colors; i++) {
+    printf("i: %d, max r g b: %d %d %d\n", i, artnet->max_colorvalues[i * 3], artnet->max_colorvalues[i * 3 + 1], artnet->max_colorvalues[i * 3 + 2]);
+  }
+  printf("max_colorvalue_red: %d max_colorvalue_green: %d max_colorvalue_blue: %d\n", artnet->max_colorvalue_red, artnet->max_colorvalue_green, artnet->max_colorvalue_blue);
+}
+
+void print_artnet_stats() {
+  printf("Stats: Packet counter: %d, max exceeded: %d\n", packet_counter, exceed_counter);
 }
 
 void free_artnet(ArtnetT* artnet) {
@@ -290,7 +314,7 @@ void test_mapping(ArtnetT* artnet, int bars_count) {
   }
 }
 
-void debug_print_buffer(int universe, int socket, uint8_t* buffer, int buffer_size) {
+void debug_print_buffer_full(int universe, int socket, uint8_t* buffer, int buffer_size) {
   printf("Values for universe %d, socket: %d\n", universe, socket);
   for (int i=0; i < buffer_size / 16; ++i) {
     for (int j=0; j < 16; ++j) {
@@ -300,15 +324,11 @@ void debug_print_buffer(int universe, int socket, uint8_t* buffer, int buffer_si
     printf("\n");
   }
 }
-
-// void debug_print_buffer2(int universe, uint8_t* buffer, int buffer_size) {
-//   printf("Values for universe %d\n", universe);
-//   for (int i=0; i < buffer_size; ++i) {
-//     if (buffer[i] != 0) {
-//       printf("  %d: %d\n", i, buffer[i]);
-//     }
-//   }
-// }
+void debug_print_buffer(int universe, int socket, uint8_t* buffer, int buffer_size) {
+  socket = buffer_size; // avoid error: parameter ‘socket’ set but not used [-Werror=unused-but-set-parameter]
+  buffer_size = socket; // avoid error: parameter ‘socket’ set but not used [-Werror=unused-but-set-parameter]
+  printf("Universe %d: %3d, %3d, %3d, %3d, %3d, %3d\n", universe, buffer[19],  buffer[20], buffer[21],  buffer[24],  buffer[25], buffer[26]);
+}
 
 void reset_all_buffers(ArtnetT* artnet) {
   for (int i=0; i < artnet->no_universes; ++i) {
@@ -321,6 +341,7 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
   bool universes_to_send[artnet->no_universes];
   memset(universes_to_send, 0, artnet->no_universes*sizeof(bool));
   reset_all_buffers(artnet);
+  ++packet_counter;
 
   for (int i=0; i < bars_count; ++i) {
     float r, g, b;
@@ -331,6 +352,7 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
     float hue = 360.0F / artnet->no_colors * hue_index;
     if (f[i] > 255) {
       f[i] = 255;
+      ++exceed_counter;
     }
     float sat = f[i] / 255.0F;
     float val = f[i] / 255.0F;
@@ -342,10 +364,14 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
     int ib = round(255.0F * b);
     // scale values so that all colors sum up max to (255, 255, 255)
     // printf(" ir ig ib: %d %d %d ### max r g b: %d %d %d\n", ir, ig, ib,  artnet->max_colorvalue_red,  artnet->max_colorvalue_green,  artnet->max_colorvalue_blue);
-    ir = ir * artnet->max_colorvalues[hue_index * 3] / artnet->max_colorvalue_red; 
-    ig = ig * artnet->max_colorvalues[hue_index * 3 + 1] / artnet->max_colorvalue_green; 
-    ib = ib * artnet->max_colorvalues[hue_index * 3 + 2] / artnet->max_colorvalue_blue; 
-    // printf(" ### current max r g b: %d %d %d, scaled ir ig ib: %d %d %d\n", artnet->max_colorvalues[i * 3], artnet->max_colorvalues[i * 3 + 1], artnet->max_colorvalues[i * 3 + 2], ir, ig, ib);
+    // printf("index: %d: unscaled ir ig ib: %d %d %d\n", hue_index, ir, ig, ib);
+    // ir = ir * artnet->max_colorvalues[hue_index * 3] / artnet->max_colorvalue_red; 
+    // ig = ig * artnet->max_colorvalues[hue_index * 3 + 1] / artnet->max_colorvalue_green; 
+    // ib = ib * artnet->max_colorvalues[hue_index * 3 + 2] / artnet->max_colorvalue_blue;
+    ir = ir * 255 / artnet->max_colorvalue; 
+    ig = ig * 255 / artnet->max_colorvalue;
+    ib = ib * 255 / artnet->max_colorvalue; 
+    // printf("index: %d: scaled ir ig ib: %d %d %d\n", hue_index, ir, ig, ib);
     // find channels where to set rgb values
     // iterate all devices in this group:
     DeviceT** devices = artnet->devices_in_group[group];
@@ -367,7 +393,6 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       int socket = artnet->sockets[i];
       if (socket > 0) {
         int n = send(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0);
-        // int n = sendto(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0, (struct sockaddr *) &addr_sento, sizeof (addr_sento));
         if (n == -1) {
           printf("Error: failed to send UDP\n");
         }
@@ -376,7 +401,6 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       else {
         printf("Error: socket for universe %d is zero (no connection)\n", i);
       }
-      // debug_print_buffer(i, artnet->dmx_buffers[i]+sizeof(dmx_header), dmx_buffer_size - sizeof(dmx_header));
     } 
     // else {
     //   printf("universe %d is false\n", i);
