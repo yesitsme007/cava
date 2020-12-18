@@ -95,6 +95,9 @@ void cleanup(void) {
 #endif
     } else if (output_mode == OUTPUT_NONCURSES) {
         cleanup_terminal_noncurses();
+    } else if (output_mode == OUTPUT_ARTNET) {
+        cfg_artnet_free(&p);
+        print_artnet_stats();
     }
 }
 
@@ -1247,9 +1250,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             free_artnet(artnet);
         }
         cleanup();
-        if (output_mode == OUTPUT_ARTNET) {
-            cfg_artnet_free(&p);
-        }
 
         if (should_quit)
             return EXIT_SUCCESS;
