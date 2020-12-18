@@ -32,4 +32,4 @@ m4/
 missing
 version
 *.code-workspace
-.vs-code
+.vscode/
