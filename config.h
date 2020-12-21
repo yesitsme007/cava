@@ -64,6 +64,16 @@ struct universe {
 };
 typedef struct universe UniverseT;
 
+struct color_map {
+  int hue;   // 0..360 in degrees
+  int band;  // number of frequency band in cava
+};
+
+typedef struct {
+  int no_color_maps;
+  struct color_map maps[];
+} TColorMaps;
+
 #endif
 
 
@@ -87,6 +97,8 @@ struct config_params {
     int no_devices;
     DeviceT* devices;
     int no_colors; // number of colors each device will display (distributed evenly across hue 0-360°)
+    int no_mappings;
+    TColorMaps **mappings;
 };
 #endif
 
@@ -99,7 +111,9 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
                  struct error_s *error);
                  
 #ifndef ARTNET
-void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices);
+void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices, int no_mappings);
 void cfg_add_universe(UniverseT*, int universe_id, const char* hostname, int port);
+TColorMaps* artnet_alloc_color_map(int no_mappings);
+void artnet_free_color_map(TColorMaps* color_map);
 void cfg_artnet_free (struct config_params* cfg);
 #endif

@@ -181,7 +181,7 @@ void init_default_artnet_config(struct config_params* cfg) {
     { 2, "192.168.178.23", 0}
    }; 
   cfg->no_universes = sizeof(universes) / sizeof(universes[0]);
-  cfg_artnet_alloc(cfg, cfg->no_universes, 4);
+  cfg_artnet_alloc(cfg, cfg->no_universes, 4, 2);
   for (int i=0; i<cfg->no_universes; i++) {
     cfg_add_universe(&(cfg->universes[i]), universes[i].id, universes[i].hostname, universes[i].port);
   }
@@ -212,6 +212,29 @@ void init_default_artnet_config(struct config_params* cfg) {
   device4->channel_r = 7;
   device4->channel_g = 8;
   device4->channel_b = 9;
+
+  TColorMaps* colorMap1;
+  colorMap1 = artnet_alloc_color_map(2);
+  colorMap1->no_color_maps = 2;
+  colorMap1->maps[0].hue = 0;
+  colorMap1->maps[0].hue = 0;
+  colorMap1->maps[0].band = 3;
+  colorMap1->maps[1].hue = 120;
+  colorMap1->maps[1].band = 8;
+
+  TColorMaps* colorMap2;
+  colorMap2 = artnet_alloc_color_map(3);
+  colorMap2->maps[0].hue = 60;
+  colorMap2->maps[0].band = 2;
+  colorMap2->maps[1].hue = 180;
+  colorMap2->maps[1].band = 8;
+  colorMap2->maps[2].hue = 240;
+  colorMap2->maps[2].band = 5;
+  
+  cfg->no_mappings = 2;
+  cfg->mappings[0] = colorMap1;
+  cfg->mappings[1] = colorMap2;
+
 }
 
 // general: entry point
@@ -875,7 +898,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             
             if (output_mode == OUTPUT_ARTNET) {
                 printf("Init Artnet\n");
-                // init_default_artnet_config(&p);
+init_default_artnet_config(&p);
                 artnet = init_artnet(&p, number_of_bars, true);
                 printf("Init Artnet done\n");
             }

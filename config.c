@@ -643,7 +643,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
         char section_name[100];
         char key_name[120];
         printf("Allocating space for universes: %d and devices: %d\n", no_universes, no_devices);
-        cfg_artnet_alloc(p, no_universes, no_devices);
+        cfg_artnet_alloc(p, no_universes, no_devices, 0);
 
         // read universes:
         for (int i=0; i < no_universes; ++i) {
@@ -698,13 +698,15 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
 }
 
 #ifndef ARTNET
-void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices) {
+void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices, int no_mappings) {
   cfg->no_universes = no_universes;
   printf("Alloc universes: %d\n",no_universes);
   cfg->universes = malloc(no_universes * sizeof(UniverseT));
   cfg->no_devices = no_devices;
   printf("Alloc devices: %d\n",no_devices);
-  cfg->devices = malloc(no_devices * sizeof(DeviceT)); 
+  cfg->devices = malloc(no_devices * sizeof(DeviceT));
+  cfg->no_mappings = no_mappings;
+  cfg->mappings = malloc(no_mappings * sizeof(TColorMaps));
 }
 
 void cfg_add_universe(UniverseT* universe, int universe_id, const char* hostname, int port) {
@@ -716,6 +718,16 @@ void cfg_add_universe(UniverseT* universe, int universe_id, const char* hostname
   universe->port = port;
 }
 
+TColorMaps* artnet_alloc_color_map(int no_mappings){
+  TColorMaps* result = malloc(sizeof(struct color_map) * no_mappings + sizeof(int));
+  result->no_color_maps = no_mappings;
+  return result;
+}
+
+void artnet_free_color_map(TColorMaps* color_map) {
+  free(color_map);
+}
+
 void cfg_artnet_free (struct config_params* cfg) {
   for (int i=0; i<cfg->no_universes; ++i) {
     if (cfg->universes[i].hostname != NULL) {
@@ -724,5 +736,11 @@ void cfg_artnet_free (struct config_params* cfg) {
   }
   free(cfg->universes);
   free(cfg->devices);
+  if (cfg->no_mappings > 0) {
+    for (int i=0; i<cfg->no_mappings; ++i) {
+        artnet_free_color_map(cfg->mappings[i]);
+    }
+    free(cfg->mappings);
+  }
 }
 #endif

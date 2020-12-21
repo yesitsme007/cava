@@ -15,6 +15,8 @@ struct artnet {
   DeviceT* devices;     // required on input
   uint8_t **dmx_buffers;
   uint32_t max_colorvalue;
+  int no_mappings;      // required on input
+  TColorMaps *mappings; // required on input
 };
 
 typedef struct artnet ArtnetT;
