@@ -143,20 +143,15 @@ ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
   printf("init_artnet devices for %d bands\n", no_bars);
   artnet->no_devices = cfg->no_devices;
   artnet->devices = malloc(cfg->no_devices * sizeof(DeviceT));
+  artnet->no_groups = cfg->no_mappings;
+  printf("no colors-mappings: %d, no devices: %d\n", cfg->no_mappings, cfg->no_devices);
   memcpy(artnet->devices, cfg->devices, cfg->no_devices * sizeof(DeviceT));
-  artnet->no_colors = cfg->no_colors;
-  printf("no colors: %d, no devices: %d\n", cfg->no_colors, cfg->no_devices);
   for (int i=0; i < cfg->no_devices; ++i) {
     DeviceT device = artnet->devices[i];
     printf("device %d, universe: %d, group: %d, channel r: %d, g: %d, b: %d\n", 
        i, device.universe, device.group, device.channel_r, device.channel_g, device.channel_b);
   }
 
-  artnet->no_groups = no_bars / cfg->no_colors;
-  if (no_bars / artnet->no_colors % 1 != 0) {
-    printf("Warning bars should be multiple of device-colors.");
-    ++artnet->no_groups;
-  }
   printf("Number of used groups: %d\n", artnet->no_groups);
   init_artnet_groups(artnet);
 
@@ -337,7 +332,31 @@ void reset_all_buffers(ArtnetT* artnet) {
   }
 }
 
-int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
+int send_dmx_buffers(ArtnetT* artnet, bool universes_to_send[]) {
+  // send dmx buffer to all used universes:
+  for (int i=0; i < artnet->no_universes; ++i) {
+    if (universes_to_send[i]) {
+      int socket = artnet->sockets[i];
+      if (socket > 0) {
+        int n = send(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0);
+        if (n == -1) {
+          printf("Error: failed to send UDP\n");
+        }
+        // debug_print_buffer(i, socket, artnet->dmx_buffers[i], dmx_buffer_size);
+      } 
+      else {
+        printf("Error: socket for universe %d is zero (no connection)\n", i);
+      }
+    } 
+    // else {
+    //   printf("universe %d is false\n", i);
+    // }
+
+  }
+  return 0;
+}
+
+int update_colors_old(ArtnetT* artnet, int bars_count, int f[200]) {
   const int offset = sizeof(dmx_header) - 1; // -1 one because dmx channels start at 1, but buffer at offset 0
   bool universes_to_send[artnet->no_universes];
   memset(universes_to_send, 0, artnet->no_universes*sizeof(bool));
@@ -383,25 +402,53 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       universes_to_send[universeNumber] = true;
     }
   }
-  // send dmx buffer to all used universes:
-  for (int i=0; i < artnet->no_universes; ++i) {
-    if (universes_to_send[i]) {
-      int socket = artnet->sockets[i];
-      if (socket > 0) {
-        int n = send(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0);
-        if (n == -1) {
-          printf("Error: failed to send UDP\n");
-        }
-        // debug_print_buffer(i, socket, artnet->dmx_buffers[i], dmx_buffer_size);
-      } 
-      else {
-        printf("Error: socket for universe %d is zero (no connection)\n", i);
-      }
-    } 
-    // else {
-    //   printf("universe %d is false\n", i);
-    // }
+  return send_dmx_buffers(artnet, universes_to_send);
+}
 
+int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
+  const int offset = sizeof(dmx_header) - 1; // -1 one because dmx channels start at 1, but buffer at offset 0
+  bool universes_to_send[artnet->no_universes];
+  memset(universes_to_send, 0, artnet->no_universes*sizeof(bool));
+  reset_all_buffers(artnet);
+  ++packet_counter;
+
+  for (int i=0; i < artnet->no_mappings; ++i) {
+    TColorMaps* mapping = &(artnet->mappings[i]);
+    for (int j=0; j < mapping->no_color_maps; ++j) {
+      if (mapping->maps[j].band >= bars_count || mapping->maps[j].band < 0) {
+        printf("Error: Invalid frequency band %d, check configuration for [general]/bars", mapping->maps[j].band);
+        continue;
+      }
+      int value = f[mapping->maps[j].band];
+      if (value > 255) {
+        value = 255;
+        ++exceed_counter;
+      }
+      float r, g, b;
+      float sat = value / 255.0F;
+      float val = value / 255.0F;
+      HSVtoRGB(&r, &g, &b, (float)mapping->maps[j].hue, sat, val);
+      int ir = round(255.0F * r);
+      int ig = round(255.0F * g);
+      int ib = round(255.0F * b);
+      // scale values so that all colors sum up max to (255, 255, 255)
+      // ir = ir * 255 / mapping->max_colorvalue; 
+      // ig = ig * 255 / mapping->max_colorvalue;
+      // ib = ib * 255 / mapping->max_colorvalue;
+      // iterate all devices in this group:
+      DeviceT** devices = artnet->devices_in_group[i];
+      for (int k=0; j<artnet->num_devices_in_group[i]; ++k) {
+        DeviceT* device = devices[k];
+        int universeNumber = device->universe;
+        // printf("channel for r g b: %d %d %d, universe: %d\n", device->channel_r, device->channel_g, device->channel_b, universeNumber);
+        //printf("r g b: %d %d %d, universe: %d\n", ir,ig, ib, universeNumber);
+        uint8_t* buf = artnet->dmx_buffers[universeNumber];
+        buf[device->channel_r + offset] += (uint8_t) ir;
+        buf[device->channel_g + offset] += (uint8_t) ig;
+        buf[device->channel_b + offset] += (uint8_t) ib;
+        universes_to_send[universeNumber] = true;
+      }
+    }
   }
-  return 0;
+  return send_dmx_buffers(artnet, universes_to_send);
 }

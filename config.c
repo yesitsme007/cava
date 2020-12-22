@@ -428,6 +428,31 @@ bool load_colors(struct config_params *p, dictionary *ini, void *err) {
     }
     return true;
 }
+int get_hue_for_color_string(const char* value) {
+    const char* key = strchr(value, ':');
+    if (key == NULL) {
+        key = value;
+    } else {
+        key++;
+    }
+    if (strcmp(key, "red") == 0) {
+        return 0;
+    } else if (strcmp(key, "green") == 0) {
+        return 120;
+    } else if (strcmp(key, "blue") == 0) {
+        return 240;
+    } else if (strcmp(key, "yellow") == 0) {
+        return 60;
+    } else if (strcmp(key, "cyan") == 0) {
+        return 120;
+    } else if (strcmp(key, "magenta") == 0) {
+        return 300;
+    } else if (strspn(key, "0123456789") == strlen(key)){
+        return atoi(key);
+    } else {
+        return -1;
+    }
+}
 
 bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colorsOnly,
                  struct error_s *error) {
@@ -633,12 +658,12 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
             write_errorf(error, "Artnet needs at least one group, please configure artnet/no_groups");
             return  false;
         }
-        int no_colors = iniparser_getint(ini, "artnet:no_colors", 0);
-        if (no_colors == 0) {
-            write_errorf(error, "Artnet needs number of colors, please configure artnet/no_colors");
+        int no_mappings = iniparser_getint(ini, "artnet:no_color_mappings", 0);
+        if (no_mappings == 0) {
+            write_errorf(error, "Artnet needs number of color-mappings, please configure artnet/no_color_mappings");
             return  false;
         }
-        p->no_colors = no_colors;
+        p->no_mappings = no_mappings;
         
         char section_name[100];
         char key_name[120];
@@ -689,6 +714,35 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
             device->channel_g = channel_green;
             device->channel_b = channel_blue;
         }
+        // read color-mappings:
+        printf("configure color-mappings %d\n", no_mappings);
+        TColorMaps **all_mappings = artnet_alloc_color_map_array(no_mappings);
+        for (int i=0; i < no_mappings; ++i) {
+            snprintf(section_name, sizeof(section_name), "color_mapping-%d", i+1);
+            int no_entries = iniparser_getsecnkeys(ini, section_name);
+            if (no_entries == 0) {
+                write_errorf(error, "Missing expected section %s", section_name);
+                return  false;
+            }
+            // get all key/value pairs
+            printf("  read section %s\n", section_name);
+            no_entries = iniparser_getsecnkeys(ini, section_name);
+            TColorMaps *color_map =  artnet_alloc_color_map(no_entries);
+            color_map->no_color_maps = no_entries;
+            const char* keys[no_entries];
+            iniparser_getseckeys(ini, section_name, keys);
+            for (int j=0; j < no_entries; ++j) {
+                int band = iniparser_getint(ini, keys[j], -1);
+                int hue = get_hue_for_color_string(keys[j]);
+                if (hue == -1) {
+                    printf("Illegal hue value %s, must be 0 - 360 or red, green, blue, cyan, magenta, yellow", keys[j]);
+                } else {
+                    color_map->maps[j].band = band;
+                    color_map->maps[j].hue = hue;
+                }
+            }
+            all_mappings[i] = color_map;
+        }
     }
 #endif
 
@@ -728,6 +782,15 @@ void artnet_free_color_map(TColorMaps* color_map) {
   free(color_map);
 }
 
+TColorMaps** artnet_alloc_color_map_array(int no_mappings) {
+  TColorMaps** result = malloc(sizeof(TColorMaps*) * no_mappings);
+  return result;
+}
+
+void artnet_free_color_map_array(TColorMaps** color_map_array) {
+    free(color_map_array);
+}
+
 void cfg_artnet_free (struct config_params* cfg) {
   for (int i=0; i<cfg->no_universes; ++i) {
     if (cfg->universes[i].hostname != NULL) {
@@ -740,7 +803,7 @@ void cfg_artnet_free (struct config_params* cfg) {
     for (int i=0; i<cfg->no_mappings; ++i) {
         artnet_free_color_map(cfg->mappings[i]);
     }
-    free(cfg->mappings);
+    artnet_free_color_map_array(cfg->mappings);
   }
 }
 #endif

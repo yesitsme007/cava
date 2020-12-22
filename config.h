@@ -96,7 +96,6 @@ struct config_params {
     UniverseT* universes;
     int no_devices;
     DeviceT* devices;
-    int no_colors; // number of colors each device will display (distributed evenly across hue 0-360°)
     int no_mappings;
     TColorMaps **mappings;
 };
@@ -115,5 +114,7 @@ void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devic
 void cfg_add_universe(UniverseT*, int universe_id, const char* hostname, int port);
 TColorMaps* artnet_alloc_color_map(int no_mappings);
 void artnet_free_color_map(TColorMaps* color_map);
+TColorMaps** artnet_alloc_color_map_array(int no_mappings);
+void artnet_free_color_map_array(TColorMaps** color_map_array);
 void cfg_artnet_free (struct config_params* cfg);
 #endif

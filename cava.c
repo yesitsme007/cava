@@ -187,7 +187,7 @@ void init_default_artnet_config(struct config_params* cfg) {
   }
 
   //cfg->no_bars = 12;
-  cfg->no_colors = 6;
+  //cfg->no_colors = 6;
   DeviceT* device1 = &cfg->devices[0];
   device1->universe = 0;
   device1->group = 0;
