@@ -85,6 +85,8 @@ fftw_plan p_mid_l, p_mid_r;
 fftw_complex *out_treble_l, *out_treble_r;
 fftw_plan p_treble_l, p_treble_r;
 
+ArtnetT* artnet = NULL;
+
 // general: cleanup
 void cleanup(void) {
     if (output_mode == OUTPUT_NCURSES) {
@@ -96,6 +98,10 @@ void cleanup(void) {
     } else if (output_mode == OUTPUT_NONCURSES) {
         cleanup_terminal_noncurses();
     } else if (output_mode == OUTPUT_ARTNET) {
+        printf("cleaning up\n");
+        if (artnet != NULL) {
+            free_artnet(artnet);
+        }
         cfg_artnet_free(&p);
         print_artnet_stats();
     }
@@ -292,7 +298,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
     struct audio_data audio;
     memset(&audio, 0, sizeof(audio));
-    ArtnetT* artnet = NULL;
 
 #ifndef NDEBUG
     int maxvalue = 0;
@@ -898,7 +903,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             
             if (output_mode == OUTPUT_ARTNET) {
                 printf("Init Artnet\n");
-init_default_artnet_config(&p);
                 artnet = init_artnet(&p, number_of_bars, true);
                 printf("Init Artnet done\n");
             }
@@ -917,9 +921,13 @@ init_default_artnet_config(&p);
 
 // general: keyboard controls
 #ifdef NCURSES
-                if (output_mode == OUTPUT_NCURSES)
+                if (output_mode == OUTPUT_NCURSES) {
                     ch = getch();
+                } else
 #endif
+                // if (output_mode == OUTPUT_ARTNET) {
+                //    ch =  fgetc(stdin);
+                // }
                 /*
                 if (output_mode == OUTPUT_NONCURSES)
                     ch = fgetc(stdin);
@@ -966,7 +974,16 @@ init_default_artnet_config(&p);
                     should_reload = 1;
                     should_quit = 1;
                 }
-
+                // if (output_mode == OUTPUT_ARTNET) {
+                //     // only allow quit, sensitivity
+                //     if (should_reload) {
+                //         resizeTerminal = true;
+                //     } else {
+                //         resizeTerminal = false;
+                //     }
+                //     should_reload = 0;
+                //     reload_colors = 0;
+                // }
                 if (should_reload) {
 
                     reloadConf = true;
@@ -1269,9 +1286,6 @@ init_default_artnet_config(&p);
         fftw_free(out_treble_l);
         fftw_destroy_plan(p_treble_l);
         fftw_destroy_plan(p_treble_r);
-        if (artnet != NULL) {
-            free_artnet(artnet);
-        }
         cleanup();
 
         if (should_quit)

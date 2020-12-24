@@ -189,13 +189,20 @@ bool validate_artnet(struct config_params *p, struct error_s *error) {
     for (int i=0; i < p->no_devices; ++i) {
         snprintf(section_name, sizeof(section_name), "device-%d", i+1);
         if (p->devices[i].group < 0) {
-             write_errorf(error, "Missing expected entry 'group' in section %s\n", section_name);
+             write_errorf(error, "Missing or wrong entry 'group' in section %s\n", section_name);
+             result = false;
+        } else if (p->devices[i].group > p->no_mappings) {
+             write_errorf(error, "Invalid entry 'group' in section %s, group is %d, max. allowed is %d\n", 
+                section_name, p->devices[i].group, p->no_mappings);
              result = false;
         }
 
         if (p->devices[i].universe < 0) {
-             write_errorf(error, "Missing expected entry 'universe' in section %s\n", section_name);
+             write_errorf(error, "Missing or wrong entry 'universe' in section %s\n", section_name);
              result = false;
+        } else if (p->devices[i].universe > p->no_universes) {
+             write_errorf(error, "Invalid entry 'universe' in section %s, group is %d, max. allowed is %d\n", 
+                section_name, p->devices[i].universe, p->no_universes);
         }
 
         if (p->devices[i].channel_r < 0) {
@@ -212,8 +219,10 @@ bool validate_artnet(struct config_params *p, struct error_s *error) {
              write_errorf(error, "Missing expected entry 'channel_b' in section %s\n", section_name);
              result = false;
         }
-    }
+        // check that there are no uknknown universes and groups:
 
+    }
+    
     return result;
 }
 #endif
@@ -653,11 +662,6 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
             write_errorf(error, "Artnet needs at least one univers, please configure artnet/no_universes");
             return  false;
         }
-        int no_groups = iniparser_getint(ini, "artnet:no_groups", 0);
-        if (no_groups == 0) {
-            write_errorf(error, "Artnet needs at least one group, please configure artnet/no_groups");
-            return  false;
-        }
         int no_mappings = iniparser_getint(ini, "artnet:no_color_mappings", 0);
         if (no_mappings == 0) {
             write_errorf(error, "Artnet needs number of color-mappings, please configure artnet/no_color_mappings");
@@ -717,6 +721,8 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
         // read color-mappings:
         printf("configure color-mappings %d\n", no_mappings);
         TColorMaps **all_mappings = artnet_alloc_color_map_array(no_mappings);
+        p->no_mappings = no_mappings;
+        p->mappings = all_mappings;
         for (int i=0; i < no_mappings; ++i) {
             snprintf(section_name, sizeof(section_name), "color_mapping-%d", i+1);
             int no_entries = iniparser_getsecnkeys(ini, section_name);
@@ -737,6 +743,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
                 if (hue == -1) {
                     printf("Illegal hue value %s, must be 0 - 360 or red, green, blue, cyan, magenta, yellow", keys[j]);
                 } else {
+                    printf("add band: %d, hue: %d, key: %s\n", band, hue, keys[j]);
                     color_map->maps[j].band = band;
                     color_map->maps[j].hue = hue;
                 }
