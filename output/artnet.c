@@ -115,6 +115,9 @@ ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
   ArtnetT* artnet = malloc(sizeof(ArtnetT));
   memset(artnet, 0, sizeof(ArtnetT));
 
+  artnet->min_value = cfg->min_value;
+  printf("using minimal value for darkness: %d\n", artnet->min_value);
+
   printf("init_artnet universes\n");
   artnet->no_universes = cfg->no_universes;
   if (artnet->no_universes > 0) {
@@ -359,13 +362,13 @@ int send_dmx_buffers(ArtnetT* artnet, bool universes_to_send[]) {
   // send dmx buffer to all used universes:
   for (int i=0; i < artnet->no_universes; ++i) {
     if (universes_to_send[i]) {
+      // debug_print_buffer(i, (int)socket, artnet->dmx_buffers[i], dmx_buffer_size);
       int socket = artnet->sockets[i];
       if (socket > 0) {
         int n = send(socket, artnet->dmx_buffers[i], dmx_buffer_size, 0);
         if (n == -1) {
           printf("Error: failed to send UDP\n");
         }
-        debug_print_buffer(i, socket, artnet->dmx_buffers[i], dmx_buffer_size);
       } 
       else {
         printf("Error: socket for universe %d is zero (no connection)\n", i);
@@ -385,12 +388,13 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
   memset(universes_to_send, 0, artnet->no_universes*sizeof(bool));
   reset_all_buffers(artnet);
   ++packet_counter;
+  bool all_dark = true;
 
    for (int i=0; i < artnet->no_mappings; ++i) {
     //printf("process mapping %d\n", i);
     TColorMaps* mapping = artnet->mappings[i];
     for (int j=0; j < mapping->no_color_maps; ++j) {
-      //printf("  band: %d of %d\n", mapping->maps[j].band, mapping->no_color_maps);
+      // printf("  band: %d of %d\n", mapping->maps[j].band, mapping->no_color_maps);
       if (mapping->maps[j].band >= bars_count || mapping->maps[j].band < 0) {
         printf("Error: Invalid frequency band %d, check configuration for [general]/bars", mapping->maps[j].band);
         continue;
@@ -401,12 +405,16 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
         ++exceed_counter;
       }
       float r, g, b;
-      float sat = value / 255.0F;
+      float sat = 1.0F; // value / 255.0F;
       float val = value / 255.0F;
+      if (val > 0) {
+        all_dark = false;
+      }
       HSVtoRGB(&r, &g, &b, (float)mapping->maps[j].hue, sat, val);
       int ir = round(255.0F * r);
       int ig = round(255.0F * g);
       int ib = round(255.0F * b);
+      // printf("    hsv: %d, %d, %d, rgb: %d, %d, %d\n", mapping->maps[j].hue, value, value, ir, ig, ib);
       // scale values so that all colors sum up max to (255, 255, 255)
       // ir = ir * 255 / mapping->max_colorvalue; 
       // ig = ig * 255 / mapping->max_colorvalue;
@@ -415,17 +423,30 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       DeviceT** devices = artnet->devices_in_group[i];
       for (int k=0; k<artnet->num_devices_in_group[i]; ++k) {
         DeviceT* device = devices[k];
-        //printf("    device: %d of %d\n", k, artnet->num_devices_in_group[i]);
+        // printf("    device: %d of %d\n", k, artnet->num_devices_in_group[i]);
         int universeNumber = device->universe;
         // printf("channel for r g b: %d %d %d, universe: %d\n", device->channel_r, device->channel_g, device->channel_b, universeNumber);
         uint8_t* buf = artnet->dmx_buffers[universeNumber];
         // printf("    r g b: %d %d %d, universe: %d\n", ir,ig, ib, universeNumber);
-        buf[device->channel_r + offset] += (uint8_t) ir;
-        buf[device->channel_g + offset] += (uint8_t) ig;
-        buf[device->channel_b + offset] += (uint8_t) ib;
+        int buf_offset = device->channel_r + offset;
+        int sum = buf[buf_offset] + (uint8_t) ir;
+        buf[buf_offset] = sum > 255 ? 255 : sum;
+        buf_offset = device->channel_g + offset;
+        sum = buf[buf_offset] + (uint8_t) ig;
+        buf[buf_offset] = sum > 255 ? 255 : sum;
+        buf_offset = device->channel_b + offset;
+        sum = buf[buf_offset] + (uint8_t) ib;
+        buf[buf_offset] = sum > 255 ? 255 : sum;
         universes_to_send[universeNumber] = true;
       }
     }
   }
-  return send_dmx_buffers(artnet, universes_to_send);
+  if (all_dark && artnet->min_value > 0) {
+    for (int i=0;i< bars_count; ++i) {
+      f[i] = artnet->min_value;
+    }
+    return update_colors(artnet, bars_count, f);
+  } else {
+    return send_dmx_buffers(artnet, universes_to_send);
+  }
 }

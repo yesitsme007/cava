@@ -98,6 +98,7 @@ struct config_params {
     DeviceT* devices;
     int no_mappings;
     TColorMaps **mappings;
+    int min_value;    
 };
 #endif
 

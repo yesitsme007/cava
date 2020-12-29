@@ -15,6 +15,7 @@ struct artnet {
   uint32_t max_colorvalue;
   int no_mappings;      // required on input
   TColorMaps **mappings; // required on input
+  int min_value; // required on input
 };
 
 typedef struct artnet ArtnetT;

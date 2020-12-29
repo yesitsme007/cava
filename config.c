@@ -2,7 +2,7 @@
 #include "util.h"
 
 #include <ctype.h>
-#include <iniparser.h>
+#include "iniparser.h"
 #include <math.h>
 
 #ifdef SNDIO
@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 
 double smoothDef[5] = {1, 1, 1, 1, 1};
+#define PACKAGE "cava"
 
 enum input_method default_methods[] = {
     INPUT_FIFO,
@@ -219,8 +220,12 @@ bool validate_artnet(struct config_params *p, struct error_s *error) {
              write_errorf(error, "Missing expected entry 'channel_b' in section %s\n", section_name);
              result = false;
         }
-        // check that there are no uknknown universes and groups:
+        // TODO: check that there are no uknknown universes and groups
 
+        if (p->min_value < 0 || p->min_value > 255) {
+             write_errorf(error, "'min_value' in section 'artnet' must be between 0 and 255, but is %d\n", p->min_value);
+             result = false;
+        }
     }
     
     return result;
@@ -502,6 +507,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
     } else { // opening specified file
 
         fp = fopen(configPath, "rb+");
+        printf("Loading config file %s\n", configPath);
         if (fp) {
             fclose(fp);
         } else {
@@ -668,6 +674,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
             return  false;
         }
         p->no_mappings = no_mappings;
+        p->min_value = iniparser_getint(ini, "artnet:min_value", 0);
         
         char section_name[100];
         char key_name[120];
