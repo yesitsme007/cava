@@ -407,7 +407,7 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       float r, g, b;
       float sat = 1.0F; // value / 255.0F;
       float val = value / 255.0F;
-      if (val > 0) {
+      if (value > artnet->min_value) {
         all_dark = false;
       }
       HSVtoRGB(&r, &g, &b, (float)mapping->maps[j].hue, sat, val);
