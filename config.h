@@ -47,7 +47,7 @@ enum output_method { OUTPUT_NCURSES, OUTPUT_NONCURSES, OUTPUT_RAW, OUTPUT_ARTNET
 
 enum xaxis_scale { NONE, FREQUENCY, NOTE };
 
-#ifndef ARTNET
+#ifdef ARTNET
 struct device {
   int universe;
   int channel_r;
@@ -91,7 +91,7 @@ struct config_params {
         gradient, gradient_count, fixedbars, framerate, bar_width, bar_spacing, autosens, overshoot,
         waves, fifoSample, fifoSampleBits, sleep_timer;
     
-#ifndef ARTNET   
+#ifdef ARTNET   
     int no_universes;
     UniverseT* universes;
     int no_devices;
@@ -99,8 +99,8 @@ struct config_params {
     int no_mappings;
     TColorMaps **mappings;
     int min_value;    
-};
 #endif
+};
 
 struct error_s {
     char message[MAX_ERROR_LEN];
@@ -110,7 +110,7 @@ struct error_s {
 bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colorsOnly,
                  struct error_s *error);
                  
-#ifndef ARTNET
+#ifdef ARTNET
 void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices, int no_mappings);
 void cfg_add_universe(UniverseT*, int universe_id, const char* hostname, int port);
 TColorMaps* artnet_alloc_color_map(int no_mappings);

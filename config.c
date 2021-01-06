@@ -169,7 +169,8 @@ bool validate_colors(void *params, void *err) {
 
     return true;
 }
-#ifndef ARTNET
+
+#ifdef ARTNET
 bool validate_artnet(struct config_params *p, struct error_s *error) {
     bool result = true;
     char section_name[100];
@@ -279,7 +280,7 @@ bool validate_config(struct config_params *p, struct error_s *error) {
             return false;
         }
     }
-#ifndef ARTNET    
+#ifdef ARTNET    
     if (strcmp(outputMethod, "artnet") == 0) {
         printf("Using Artnet output\n");
         p->om = OUTPUT_ARTNET;
@@ -389,7 +390,7 @@ bool validate_config(struct config_params *p, struct error_s *error) {
     // setting sens
     p->sens = p->sens / 100;
 
-#ifndef ARTNET
+#ifdef ARTNET
     // validate: artnet configuration
     if (p->om == OUTPUT_ARTNET && !validate_artnet(p, error)) {
         return false;
@@ -651,7 +652,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
         return false;
     }
 
-#ifndef ARTNET
+#ifdef ARTNET
     if (strcmp(outputMethod, "artnet") == 0) {
         printf("Configurig Artnet\n");
         if (p->fixedbars <= 0) {
@@ -765,7 +766,7 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
     return result;
 }
 
-#ifndef ARTNET
+#ifdef ARTNET
 void cfg_artnet_alloc (struct config_params* cfg, int no_universes, int no_devices, int no_mappings) {
   cfg->no_universes = no_universes;
   printf("Alloc universes: %d\n",no_universes);

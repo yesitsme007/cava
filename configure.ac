@@ -56,7 +56,6 @@ AS_IF([test "x$enable_ubsan" = "xyes"], [
   LDFLAGS="$LDFLAGS -fsanitize=undefined"
 ])
 
-
 dnl ######################
 dnl checking for pthread
 dnl ######################
@@ -165,6 +164,23 @@ AS_IF([test "x$enable_input_sndio" != "xno"], [
 )
 
 AM_CONDITIONAL([SNDIO], [test "x$have_sndio" = "xyes"])
+
+dnl ######################
+dnl checking Artnet
+dnl ######################
+
+AC_ARG_ENABLE([artnet],
+  AS_HELP_STRING([--enable-artnet],
+    [build with support for output with Artnet protocol])
+)
+
+AS_IF([test "x$enable_artnet" = "xyes"], [
+  dnl add artnet output mode
+  CPPFLAGS="$CPPFLAGS -DARTNET"
+])
+
+AM_CONDITIONAL([ARTNET], [test "x$enable_artnet" = "xyes"])
+
 
 dnl ######################
 dnl checking for math lib

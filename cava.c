@@ -53,7 +53,10 @@
 #include "input/sndio.h"
 
 #include "config.h"
+
+#ifdef ARTNET
 #include "output/artnet.h"
+#endif
 
 #ifdef __GNUC__
 // curses.h or other sources may already define
@@ -85,7 +88,9 @@ fftw_plan p_mid_l, p_mid_r;
 fftw_complex *out_treble_l, *out_treble_r;
 fftw_plan p_treble_l, p_treble_r;
 
+#ifdef ARTNET
 ArtnetT* artnet = NULL;
+#endif
 
 // general: cleanup
 void cleanup(void) {
@@ -97,6 +102,7 @@ void cleanup(void) {
 #endif
     } else if (output_mode == OUTPUT_NONCURSES) {
         cleanup_terminal_noncurses();
+#ifdef ARTNET
     } else if (output_mode == OUTPUT_ARTNET) {
         printf("cleaning up\n");
         if (artnet != NULL) {
@@ -104,6 +110,7 @@ void cleanup(void) {
         }
         cfg_artnet_free(&p);
         print_artnet_stats();
+#endif        
     }
 }
 
@@ -179,68 +186,6 @@ int *monstercat_filter(int *bars, int number_of_bars, int waves, double monsterc
     }
 
     return bars;
-}
-
-void init_default_artnet_config(struct config_params* cfg) {
-  UniverseT universes[] = {
-    { 1, "192.168.178.82", 0},
-    { 2, "192.168.178.23", 0}
-   }; 
-  cfg->no_universes = sizeof(universes) / sizeof(universes[0]);
-  cfg_artnet_alloc(cfg, cfg->no_universes, 4, 2);
-  for (int i=0; i<cfg->no_universes; i++) {
-    cfg_add_universe(&(cfg->universes[i]), universes[i].id, universes[i].hostname, universes[i].port);
-  }
-
-  //cfg->no_bars = 12;
-  //cfg->no_colors = 6;
-  DeviceT* device1 = &cfg->devices[0];
-  device1->universe = 0;
-  device1->group = 0;
-  device1->channel_r = 2;
-  device1->channel_g = 3;
-  device1->channel_b = 4;
-  DeviceT* device2 = &cfg->devices[1];
-  device2->universe = 0;
-  device2->group = 0;
-  device2->channel_r = 7;
-  device2->channel_g = 8;
-  device2->channel_b = 9;
-  DeviceT* device3 = &cfg->devices[2];
-  device3->universe = 1;
-  device3->group = 1;
-  device3->channel_r = 2;
-  device3->channel_g = 3;
-  device3->channel_b = 4;
-  DeviceT* device4 = &cfg->devices[3];
-  device4->universe = 1;
-  device4->group = 1;
-  device4->channel_r = 7;
-  device4->channel_g = 8;
-  device4->channel_b = 9;
-
-  TColorMaps* colorMap1;
-  colorMap1 = artnet_alloc_color_map(2);
-  colorMap1->no_color_maps = 2;
-  colorMap1->maps[0].hue = 0;
-  colorMap1->maps[0].hue = 0;
-  colorMap1->maps[0].band = 3;
-  colorMap1->maps[1].hue = 120;
-  colorMap1->maps[1].band = 8;
-
-  TColorMaps* colorMap2;
-  colorMap2 = artnet_alloc_color_map(3);
-  colorMap2->maps[0].hue = 60;
-  colorMap2->maps[0].band = 2;
-  colorMap2->maps[1].hue = 180;
-  colorMap2->maps[1].band = 8;
-  colorMap2->maps[2].hue = 240;
-  colorMap2->maps[2].band = 5;
-  
-  cfg->no_mappings = 2;
-  cfg->mappings[0] = colorMap1;
-  cfg->mappings[1] = colorMap2;
-
 }
 
 // general: entry point
@@ -353,7 +298,11 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 
         output_mode = p.om;
 
+#ifdef ARTNET
         if (output_mode != OUTPUT_RAW && output_mode != OUTPUT_ARTNET) {
+#else
+        if (output_mode != OUTPUT_RAW) {
+#endif            
             // Check if we're running in a tty
             inAtty = 0;
             if (strncmp(ttyname(0), "/dev/tty", 8) == 0 || strcmp(ttyname(0), "/dev/console") == 0)
@@ -490,7 +439,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         reset_output_buffers(&audio);
 
         debug("starting audio thread\n");
-
         switch (p.im) {
 #ifdef ALSA
         case INPUT_ALSA:
@@ -586,6 +534,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         }
 
         bool reloadConf = false;
+
         while (!reloadConf) { // jumping back to this loop means that you resized the screen
             for (n = 0; n < 256; n++) {
                 bars_last[n] = 0;
@@ -660,11 +609,13 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                     height = p.ascii_range;
                 }
                 break;
+#ifdef ARTNET
             case OUTPUT_ARTNET:
                 // width must be hardcoded for raw output.
                 width = 256;
                 height = pow(2, p.bit_format) - 1;
                 break;
+#endif            
             default:
                 exit(EXIT_FAILURE); // Can't happen.
             }
@@ -724,12 +675,14 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             // calculate frequency constant (used to distribute bars across the frequency band)
             double frequency_constant = log10((float)p.lower_cut_off / (float)p.upper_cut_off) /
                                         (1 / ((float)number_of_bars + 1) - 1);
+
             // process: calculate cutoff frequencies and eq
             int bass_cut_off_bar = -1;
             int treble_cut_off_bar = -1;
             bool first_bar = true;
             int first_treble_bar = 0;
             int bar_buffer[number_of_bars + 1];
+
             for (n = 0; n < number_of_bars + 1; n++) {
                 double bar_distribution_coefficient = frequency_constant * (-1);
                 bar_distribution_coefficient +=
@@ -852,7 +805,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
             if (p.stereo)
                 number_of_bars = number_of_bars * 2;
             int x_axis_info = 0;
-
             if (p.xaxis != NONE) {
                 x_axis_info = 1;
                 double center_frequency;
@@ -901,12 +853,13 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                 printf("\r\033[%dA", lines + 1);
             }
             
+#ifdef ARTNET
             if (output_mode == OUTPUT_ARTNET) {
                 printf("Init Artnet\n");
                 artnet = init_artnet(&p, number_of_bars, true);
                 printf("Init Artnet done\n");
             }
-
+#endif
             bool resizeTerminal = false;
             // fcntl(0, F_SETFL, O_NONBLOCK);
 
@@ -925,14 +878,6 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                     ch = getch();
                 } else
 #endif
-                // if (output_mode == OUTPUT_ARTNET) {
-                //    ch =  fgetc(stdin);
-                // }
-                /*
-                if (output_mode == OUTPUT_NONCURSES)
-                    ch = fgetc(stdin);
-                */
-
                 switch (ch) {
                 case 65: // key up
                     p.sens = p.sens * 1.05;
@@ -1181,7 +1126,11 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
 #endif
 
                     // zero values causes divided by zero segfault (if not raw)
+#ifdef ARTNET                    
                     if (output_mode != OUTPUT_RAW && output_mode != OUTPUT_ARTNET && bars[n] < 1)
+#else
+                    if (output_mode != OUTPUT_RAW && bars[n] < 1)
+#endif
                         bars[n] = 1;
 
                     // automatic sense adjustment
@@ -1220,16 +1169,14 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
                                                  x_axis_info);
                     break;
                 case OUTPUT_RAW:
-                    for(int i=0; i<number_of_bars; ++i) {
-                        printf("%d ", bars[i]);
-                    }
-                    printf("\n");
                     rc = print_raw_out(number_of_bars, fp, p.is_bin, p.bit_format, p.ascii_range,
                                        p.bar_delim, p.frame_delim, bars);
                     break;
+#ifdef ARTNET 
                 case OUTPUT_ARTNET:
                     rc = update_colors(artnet, number_of_bars, bars);
                     break;
+#endif
                 default:
                     exit(EXIT_FAILURE); // Can't happen.
                 }
@@ -1286,6 +1233,7 @@ as of 0.4.0 all options are specified in config file, see in '/home/username/.co
         fftw_free(out_treble_l);
         fftw_destroy_plan(p_treble_l);
         fftw_destroy_plan(p_treble_r);
+
         cleanup();
 
         if (should_quit)
