@@ -30,28 +30,28 @@ host=192.168.10.2
 
 [device-1]
 universe = 1
-group = 1
+color_mapping = 1
 channel_red = 2
 channel_green = 3
 channel_blue = 4
 
 [device-2]
 universe = 1
-group = 2
+color_mapping = 2
 channel_red = 7
 channel_green = 8
 channel_blue = 9
 
 [device-3]
 universe = 2
-group = 3
+color_mapping = 3
 channel_red = 2
 channel_green = 3
 channel_blue = 4
 
 [device-4]
 universe = 2
-group = 4
+color_mapping = 4
 channel_red = 7
 channel_green = 8
 channel_blue = 9

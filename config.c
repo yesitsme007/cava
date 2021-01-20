@@ -190,12 +190,12 @@ bool validate_artnet(struct config_params *p, struct error_s *error) {
 
     for (int i=0; i < p->no_devices; ++i) {
         snprintf(section_name, sizeof(section_name), "device-%d", i+1);
-        if (p->devices[i].group < 0) {
-             write_errorf(error, "Missing or wrong entry 'group' in section %s\n", section_name);
+        if (p->devices[i].color_mapping < 0) {
+             write_errorf(error, "Missing or wrong entry 'color_mapping' in section %s\n", section_name);
              result = false;
-        } else if (p->devices[i].group > p->no_mappings) {
-             write_errorf(error, "Invalid entry 'group' in section %s, group is %d, max. allowed is %d\n", 
-                section_name, p->devices[i].group, p->no_mappings);
+        } else if (p->devices[i].color_mapping > p->no_mappings) {
+             write_errorf(error, "Invalid entry 'color_mapping' in section %s, group is %d, max. allowed is %d\n", 
+                section_name, p->devices[i].color_mapping, p->no_mappings);
              result = false;
         }
 
@@ -709,19 +709,19 @@ bool load_config(char configPath[PATH_MAX], struct config_params *p, bool colors
             }
             snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "universe");
             int universe = iniparser_getint(ini, key_name, -1);
-            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "group");
-            int group = iniparser_getint(ini, key_name, -1);
+            snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "color_mapping");
+            int color_mapping = iniparser_getint(ini, key_name, -1);
             snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_red");
             int channel_red = iniparser_getint(ini, key_name, -1);
             snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_green");
             int channel_green = iniparser_getint(ini, key_name, -1);
             snprintf(key_name, sizeof(key_name), "%s:%s", section_name, "channel_blue");
             int channel_blue = iniparser_getint(ini, key_name, -1);
-            printf("Set device: %d, universe: %d, group; %d, channels r: %d, g: %d, b: %d\n", 
-                i, universe, group, channel_red, channel_green, channel_blue);
+            printf("Set device: %d, universe: %d, color_mapping; %d, channels r: %d, g: %d, b: %d\n", 
+                i, universe, color_mapping, channel_red, channel_green, channel_blue);
             DeviceT* device = &p->devices[i];
             device->universe = universe-1;
-            device->group = group-1;
+            device->color_mapping = color_mapping-1;
             device->channel_r = channel_red;
             device->channel_g = channel_green;
             device->channel_b = channel_blue;

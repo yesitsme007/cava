@@ -150,8 +150,8 @@ ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
   memcpy(artnet->devices, cfg->devices, cfg->no_devices * sizeof(DeviceT));
   for (int i=0; i < cfg->no_devices; ++i) {
     DeviceT device = artnet->devices[i];
-    printf("device %d, universe: %d, group: %d, channel r: %d, g: %d, b: %d\n", 
-       i, device.universe, device.group, device.channel_r, device.channel_g, device.channel_b);
+    printf("device %d, universe: %d, color-mapping: %d, channel r: %d, g: %d, b: %d\n", 
+       i, device.universe, device.color_mapping, device.channel_r, device.channel_g, device.channel_b);
   }
 
   printf("Init color mappings: %d\n", cfg->no_mappings);
@@ -179,7 +179,7 @@ void init_artnet_groups(ArtnetT* artnet) {
   memset(artnet->num_devices_in_group, 0, artnet->no_mappings * sizeof(int));
 
   for (int i=0; i < artnet->no_devices; ++i) {
-    int current_group = artnet->devices[i].group;
+    int current_group = artnet->devices[i].color_mapping;
     if (current_group < artnet->no_mappings) {
       ++artnet->num_devices_in_group[current_group];
     }
@@ -191,7 +191,7 @@ void init_artnet_groups(ArtnetT* artnet) {
   }
   for (int i=0; i < artnet->no_devices; ++i) {
     // find index of next free index in array:
-    int current_group = artnet->devices[i].group;
+    int current_group = artnet->devices[i].color_mapping;
     if (current_group < 0 || current_group >= artnet->no_mappings) {
       printf("Warning: you have configured an used group %d in device %d, device will be ignored\n", current_group, i);
     } else {
@@ -207,8 +207,8 @@ void init_artnet_groups(ArtnetT* artnet) {
     printf("Group %d has devices:\n", i);
     for (int j=0; j<artnet->num_devices_in_group[i]; ++j) {
       DeviceT* device = artnet->devices_in_group[i][j];
-      printf("  group %d, device %d, universe: %d, group: %d, channel r: %d, g: %d, b: %d\n", 
-       i, j, device->universe, device->group, device->channel_r, device->channel_g, device->channel_b);
+      printf("  group %d, device %d, universe: %d, color-mapping: %d, channel r: %d, g: %d, b: %d\n", 
+       i, j, device->universe, device->color_mapping, device->channel_r, device->channel_g, device->channel_b);
     }
   }
 }

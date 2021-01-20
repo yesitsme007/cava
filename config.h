@@ -53,7 +53,7 @@ struct device {
   int channel_r;
   int channel_g;
   int channel_b;
-  int group;
+  int color_mapping;
 };
 typedef struct device DeviceT;
 
