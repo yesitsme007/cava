@@ -44,7 +44,6 @@ static int connect_udp(const char* host, const char* port_str) {
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
   hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-  //hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
 
   s = getaddrinfo(host, port_str, &hints, &result);
   if (s != 0) {
@@ -54,7 +53,6 @@ static int connect_udp(const char* host, const char* port_str) {
 
   for (rp = result; rp != NULL; rp = rp->ai_next) {
     printf("create socket\n");
-    //struct sockaddr_in s_in;
 
     sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sfd == -1) {
@@ -67,14 +65,7 @@ static int connect_udp(const char* host, const char* port_str) {
         printf("connect successful\n");
         break;
     }
-    // s_in.sin_family = AF_INET;
-    // s_in.sin_addr.s_addr = INADDR_ANY;
-    // s_in.sin_port = htons(0);
-    // if (bind(sfd, (struct sockaddr*) &s_in, sizeof(s_in)) == 0) {
-    // //   bind(sfd, rp->ai_addr, rp->ai_addrlen)
-    //     printf("bind successful\n");
-    //     break;                  /* Success */
-    // }
+ 
     close(sfd);
   }
 
@@ -109,7 +100,6 @@ void init_artnet_udp(ArtnetT* artnet) {
 }
 
 ArtnetT* init_artnet(struct config_params* cfg, int no_bars, bool connect) {
-  // struct sockaddr_in addr;
   printf("init_artnet\n");
 
   ArtnetT* artnet = malloc(sizeof(ArtnetT));
@@ -221,7 +211,6 @@ void init_artnet_color_mappings(ArtnetT* artnet, struct config_params* cfg) {
     TColorMaps *mapping = cfg->mappings[i];
     TColorMaps *new_mapping = artnet_alloc_color_map(mapping->no_color_maps);
     new_mapping->no_color_maps = mapping->no_color_maps;
-    // printf("  add color map with %d entries\n", mapping->no_color_maps);
     memcpy(new_mapping->maps, mapping->maps, sizeof(struct color_map) * mapping->no_color_maps);
     all_mappings[i] = new_mapping;
   }
@@ -237,42 +226,6 @@ void print_color_mappings(ArtnetT* artnet) {
     }
   }
 }
-
-/* As we map multiple colors to a single rgb value we need to scale each value
-   so that the max possible sum of all red, green, blue values is 255
-*/   
-// void init_max_colors(ArtnetT* artnet) {
-  // // artnet->max_colorvalues = malloc(artnet->no_colors * 3 * sizeof(u_int32_t));
-  // float sat = 1.0F;
-  // float val =1.0F;
-  // float r, g, b;
-  // u_int32_t max_colorvalue_blue = 0;
-  // u_int32_t max_colorvalue_green = 0;
-  // u_int32_t max_colorvalue_red = 0;
-
-  // u_int32_t max_colorvalues[artnet->no_colors * 3];
-  // printf("init_max_colors\n");
-  // memset(max_colorvalues, 0, artnet->no_colors * 3 * sizeof(u_int32_t));
-  // for (int i=0; i < artnet->no_colors; i++) {
-  //   float hue = 360.0F / artnet->no_colors * i;
-  //   HSVtoRGB(&r, &g, &b, hue, sat, val);
-  //   int ir = round(255.0F * r);
-  //   int ig = round(255.0F * g);
-  //   int ib = round(255.0F * b);
-  //   max_colorvalues[i * 3] = ir;
-  //   max_colorvalues[i * 3 + 1] = ig;
-  //   max_colorvalues[i * 3 + 2] = ib;
-  //   max_colorvalue_red += ir;
-  //   max_colorvalue_green += ig;
-  //   max_colorvalue_blue += ib;
-  // }
-  // artnet->max_colorvalue = MAX(max_colorvalue_red, max_colorvalue_green);
-  // artnet->max_colorvalue = MAX(artnet->max_colorvalue, max_colorvalue_blue);
-  // for (int i=0; i < artnet->no_colors; i++) {
-  //   printf("i: %d, max r g b: %d %d %d\n", i, max_colorvalues[i * 3], max_colorvalues[i * 3 + 1], max_colorvalues[i * 3 + 2]);
-  // }
-  // printf("max_colorvalue_red: %d, max_colorvalue_green: %d, max_colorvalue_blue: %d\n", max_colorvalue_red, max_colorvalue_green, max_colorvalue_blue);
-// }
 
 void print_artnet_stats() {
   printf("Stats: Packet counter: %d, max exceeded: %d\n", packet_counter, exceed_counter);
@@ -346,6 +299,7 @@ void debug_print_buffer_full(int universe, int socket, uint8_t* buffer, int buff
     printf("\n");
   }
 }
+
 void debug_print_buffer(int universe, int socket, uint8_t* buffer, int buffer_size) {
   socket = buffer_size; // avoid error: parameter ‘socket’ set but not used [-Werror=unused-but-set-parameter]
   buffer_size = socket; // avoid error: parameter ‘socket’ set but not used [-Werror=unused-but-set-parameter]
@@ -374,9 +328,6 @@ int send_dmx_buffers(ArtnetT* artnet, bool universes_to_send[]) {
         printf("Error: socket for universe %d is zero (no connection)\n", i);
       }
     } 
-    // else {
-    //   printf("universe %d is false\n", i);
-    // }
 
   }
   return 0;
@@ -391,10 +342,8 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
   bool all_dark = true;
 
    for (int i=0; i < artnet->no_mappings; ++i) {
-    //printf("process mapping %d\n", i);
     TColorMaps* mapping = artnet->mappings[i];
     for (int j=0; j < mapping->no_color_maps; ++j) {
-      // printf("  band: %d of %d\n", mapping->maps[j].band, mapping->no_color_maps);
       if (mapping->maps[j].band >= bars_count || mapping->maps[j].band < 0) {
         printf("Error: Invalid frequency band %d, check configuration for [general]/bars", mapping->maps[j].band);
         continue;
@@ -414,20 +363,12 @@ int update_colors(ArtnetT* artnet, int bars_count, int f[200]) {
       int ir = round(255.0F * r);
       int ig = round(255.0F * g);
       int ib = round(255.0F * b);
-      // printf("    hsv: %d, %d, %d, rgb: %d, %d, %d\n", mapping->maps[j].hue, value, value, ir, ig, ib);
-      // scale values so that all colors sum up max to (255, 255, 255)
-      // ir = ir * 255 / mapping->max_colorvalue; 
-      // ig = ig * 255 / mapping->max_colorvalue;
-      // ib = ib * 255 / mapping->max_colorvalue;
       // iterate all devices in this group:
       DeviceT** devices = artnet->devices_in_group[i];
       for (int k=0; k<artnet->num_devices_in_group[i]; ++k) {
         DeviceT* device = devices[k];
-        // printf("    device: %d of %d\n", k, artnet->num_devices_in_group[i]);
         int universeNumber = device->universe;
-        // printf("channel for r g b: %d %d %d, universe: %d\n", device->channel_r, device->channel_g, device->channel_b, universeNumber);
         uint8_t* buf = artnet->dmx_buffers[universeNumber];
-        // printf("    r g b: %d %d %d, universe: %d\n", ir,ig, ib, universeNumber);
         int buf_offset = device->channel_r + offset;
         int sum = buf[buf_offset] + (uint8_t) ir;
         buf[buf_offset] = sum > 255 ? 255 : sum;
