@@ -10,7 +10,6 @@ no_universes=2
 # number of DMX devices to use, expected sections are then [device-1] till [device-4]
 no_devices=4
 
-
 # number of DMX devices to use, expected sections are then [color_mapping-1] till [color_mapping-4]
 no_color_mappings=4
 
